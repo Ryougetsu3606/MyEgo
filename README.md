@@ -15,29 +15,29 @@ However, few works have explored whether MLLMs can perform ego-grounding - the a
 
 **Datset Statistics**
 
-![alt text](statstic.png)
+![alt text](figures/statstic.png)
 
 **Comparion to existing egocentric video QA dataset**:
 
-![alt text](comparison.png)
+![alt text](figures/comparison.png)
 ## Dataset access
 1. **Download the videos:** Please download our video source from [here](https://drive.google.com/drive/u/1/folders/1rZo-6X_Xst_9J9TzJOJ1owW3ZWUstOMl).
 2. **Video preprocessing:** You shall need to preprocess the videos collected from [Egolife](https://github.com/EvolvingLMMs-Lab/EgoLife) to remove the timestamp watermark.
 ```bash
-python scripts/mask.sh --dir <path_2_videos>
+python scripts/mask.py --input_folder <path_to_videos> --output_folder <path_to_save_unmarked_videos>
 ```
 3. **Obtain QA files:** Please see `data/myego.json` for the QA files.
 
 ## Evaluation Result
 <details><summary>Evaluation results of both open-source and closed-source MLLMs on MyEgo</summary>
 
-![alt text](result.png)
+![alt text](figures/result.png)
 </details>
 <details><summary>Visualization of the evaluation results</summary>
 
-![alt text](case.png)
+![alt text](figures/case.png)
 
-![alt text](morecase.png)
+![alt text](figures/morecase.png)
 </details>
 
 
@@ -45,3 +45,8 @@ python scripts/mask.sh --dir <path_2_videos>
 ## Evaluation Pipeline
 To be released soon.
 
+## License
+For the video sources, please refer to the original dataset licenses: 
+- [Ego4D](https://ego4ddataset.com/ego4d-license/)
+- [CASTLE](https://castle-dataset.github.io)
+- [Egolife](https://github.com/EvolvingLMMs-Lab/EgoLife/blob/main/LICENSE)
