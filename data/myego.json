@@ -15622,7 +15622,7 @@
     {
         "question": "which one is my bottle?",
         "ground_truth": 1,
-        "answer": "the one in my hand",
+        "answer": "the one in your hand",
         "question_moment": 69.0,
         "answer_moment": 37.0,
         "video_path": "02_029",
@@ -15630,7 +15630,7 @@
         "category": "object",
         "choices": [
             "the blue water bottle sitting on the floor",
-            "the one in my hand",
+            "the one in your hand",
             "the bottle your friend in the white shirt is holding",
             "the bottle sitting next to the coin tray on the game console",
             "the empty bottle in the trash can"
