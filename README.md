@@ -16,7 +16,7 @@
 ![alt text](figures/comparison.png)
 ## Dataset access
 1. **Download the videos:** We will release our video source and download scripts soon.
-   <!-- You can download the video from [site](https://drive.google.com/drive/u/0/folders/1rZo-6X_Xst_9J9TzJOJ1owW3ZWUstOMl) -->
+
 2. **Video preprocessing:** You shall need to preprocess the videos collected from **Egolife** to remove the timestamp watermark.
 ```bash
 python scripts/mask.py --input_folder <path_to_videos> --output_folder <path_to_save_unmarked_videos>
