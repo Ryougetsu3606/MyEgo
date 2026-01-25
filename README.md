@@ -1,5 +1,7 @@
 # MyEgo
 
+All contents in this repositour (except the annotated QA files) are copy from our original paper and supplementary.
+
 ## Overview
 - 541 videos collected from 3 egocentric video dataset.
 - 5,012 manually annotated questions, each with open-ended (OE) and multiple-choice (MC) subtasks.
