@@ -9,19 +9,19 @@
 **Datset Statistics**
 
 
-![alt text](figures/statstic.png)
+![alt text](figures/stat_fin.png)
 
 **Comparion to existing egocentric video QA dataset**:
 
 ![alt text](figures/comparison.png)
 ## Dataset access
-1. **Download the videos:** We will release our video source and download scripts soon.
+1. **Download the videos:** You can download the videos from [here](https://drive.google.com/drive/u/0/folders/1rZo-6X_Xst_9J9TzJOJ1owW3ZWUstOMl). Our videos are sourced from [Ego4D](https://ego4d-data.org/docs/data/videos), [CASTLE](https://castle-dataset.github.io/#download) and [Egolife](https://huggingface.co/datasets/lmms-lab/EgoLife).
 
 2. **Video preprocessing:** You shall need to preprocess the videos collected from **Egolife** to remove the timestamp watermark.
 ```bash
-python scripts/mask.py --input_folder <path_to_videos> --output_folder <path_to_save_unmarked_videos>
+python mask.py --input_folder <path_to_videos> --output_folder <path_to_save_unmasked_videos>
 ```
-1. **Obtain QA files:** Please see `data/myego.json` for the QA files.
+3. **Obtain QA files:** Please see `data/myego.json` for the QA files.
 
 ## Evaluation Result
 - Evaluation results of both open-source and closed-source MLLMs on MyEgo
@@ -37,9 +37,19 @@ python scripts/mask.py --input_folder <path_to_videos> --output_folder <path_to_
 
 ## Evaluation Pipeline
 - Inference
-To be released soon.
+
+Inference with one GPU and batch size of 1 by default.
+
+```bash
+bash scripts/infer.sh
+```
+
 - GPT-based evaluation
-To be released soon.
+
+```bash
+python eval.py --api_key <your_api_key>
+```
+  
 
 ## License
 For the video sources, please refer to the original dataset licenses: 
