@@ -18,7 +18,7 @@ python mask.py --input_folder <path_to_videos> --output_folder <path_to_save_unm
 ## Evaluation Pipeline
 
 - Inference
-Inference with one NVIDIA A100-SXM4-80GB GPU and batch size of 1 by default. We take `Qwen3-VL` as an example.
+Inference with one NVIDIA A100-SXM4-80GB GPU and batch size of 1 by default. We take [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL) as an example.
 ```bash
 python inference.py --model_path <path_to_MLLM> --video_dir <path_to_videos> --qa_json data/myego.json --qa_format <oe/mc>
 ```
