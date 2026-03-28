@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 import os
 import glob
-import cv2
 import ffmpeg
 from tqdm import tqdm
 import argparse

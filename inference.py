@@ -1,148 +1,169 @@
-import numpy as np
-import torch
-import torch.nn as nn
-
-from transformers import AutoProcessor, AutoModelForVision2Seq
-from qwen_vl_utils import process_vision_info
-
-from PIL import Image
-
-from utils import load_video, load_qa, save_qa
-from prompts import ego_qa_prompt_sys
+#!/usr/bin/env python3
 
 import os
-import json
+import sys
 import argparse
-import time
-import logging
-from tqdm import tqdm
+import json
+import warnings
 
-def qa_with_frames(question, input_frames, args):
-    input_frames = [Image.fromarray(frame) for frame in input_frames]
-    messages = [
-        {
-            "role": "system",
-            "content": ego_qa_prompt_sys,
-        },
-        {
-            "role": "user",
-            "content": [
-                {"video": input_frames, "fps": args.fps},
-                {"type": "text", "text": f"Please answer the question: {question}"},
-            ]
-        }
-    ]
+import numpy as np
+from PIL import Image
+from decord import VideoReader, cpu
+from transformers import AutoProcessor, AutoModelForImageTextToText
+from qwen_vl_utils import process_vision_info
 
-    # Copy from Qwen3-VL official
-    # TODO: Rewrite into batch process
-    text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    image_inputs, video_inputs, video_kwargs = process_vision_info([messages], return_video_kwargs=True, image_patch_size=16, return_video_metadata=True)
-    if video_inputs is not None:
-        video_inputs, video_metadatas = zip(*video_inputs)
-        video_inputs, video_metadatas = list(video_inputs), list(video_metadatas)
-    else:
-        video_metadatas = None
-    inputs = processor(text=[text], images=image_inputs, videos=video_inputs, video_metadata=video_metadatas, **video_kwargs, do_resize=False, return_tensors="pt")
-    inputs = inputs.to(args.device)
-    
-    with torch.no_grad():
-        outputs = model.generate(**inputs, max_new_tokens=128)
-        
-    generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(inputs.input_ids, outputs)]
-    response = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from prompts import SYSTEM_PROMPT, OPEN_ENDED_SYSTEM_PROMPT, build_mc_prompt, build_oe_prompt
 
+
+def extract(response: str) -> str:
+    marker = "</think>\n\n"
+    idx = response.find(marker)
+    if idx != -1:
+        return response[idx + len(marker):].strip()
     return response
 
-def infer_single_video(
-        video,
-        qas,
-        args,
-    ):
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Qwen3-VL Evaluation")
+    parser.add_argument("--qa_json", type=str, required=True)
+    parser.add_argument("--video_dir", type=str, required=True)
+    parser.add_argument("--model_path", type=str, required=True)
+    parser.add_argument("--save_dir", type=str, default="./results")
+    parser.add_argument("--max_frames", type=int, default=32)
+    parser.add_argument("--gpu", type=str, default="0")
+    parser.add_argument("--qa_format", type=str, choices=["mc", "oe"], default="mc")
+    return parser.parse_args()
+
+
+def load_video(video_path: str, timestamp: float, max_frames_num: int = 32) -> list:
+
+    vr = VideoReader(video_path, ctx=cpu(0))
+    max_idx = len(vr) - 1
     
-    ans_qas = []
-    window_size, fps = args.window_size, args.fps
-
-    for i, qa in enumerate(qas):
-        question, t_q = qa.get("question", None), qa.get("question_moment", None)
-        if question is not None and t_q is not None:
-            input_frames = load_video(video=video, args=args, start_time=0, end_time=t_q)
-            try:
-                response = qa_with_frames(question=question, input_frames=input_frames, args=args)
-            except Exception as e:
-                logging.error(f"Error in video {video}, question {question}, t_q {t_q}: {e}")
-                response = ""
-            ans_qa = {
-                "question": question,
-                "question_moment": t_q,
-                "answer": qa.get("answer", None),
-                "response": response,
-            }
-            ans_qas.append(ans_qa)
-
-    assert len(ans_qas) == len(qas), f"Only {len(ans_qas)} questions answered, but {len(qas)} questions in total"
-    return ans_qas
-
-def infer_dataset(args):
-    global model, processor
+    target_end_idx = int(vr.get_avg_fps() * timestamp)
+    target_end_idx = min(max_idx, target_end_idx)
     
-    logging.info(f"Loading base model from {args.mllm_path}...")
-    model = AutoModelForVision2Seq.from_pretrained(
-        args.mllm_path, 
-        torch_dtype=torch.float16, 
-        device_map="auto", 
+    num_frames = int(min(max_frames_num, max(1, timestamp * 1)))
+    num_frames = min(num_frames, target_end_idx + 1)
+    
+    uniform_sampled_frames = np.linspace(
+        0, target_end_idx, num_frames, dtype=int
+    )
+    
+    frame_idx = uniform_sampled_frames.tolist()
+    spare_frames = vr.get_batch(frame_idx).asnumpy()
+    
+    resize_frames = []
+    for frame in spare_frames:
+        resize_frames.append(np.array(Image.fromarray(frame).resize((384, 384))))
+        
+    return resize_frames
+
+
+def main():
+    args = parse_args()
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    
+    warnings.filterwarnings("ignore")
+    
+    print(f"QA JSON: {args.qa_json}")
+    print(f"Video Dir: {args.video_dir}")
+    print(f"Model Path: {args.model_path}")
+    print(f"QA Format: {args.qa_format}")
+    
+    os.makedirs(args.save_dir, exist_ok=True)
+    model_name = os.path.basename(args.model_path)
+    save_path = os.path.join(args.save_dir, f"{model_name}_{args.qa_format}.json")
+    
+    thinking = bool("Thinking" in model_name)
+    MAX_NEW_TOKENS = 4096 if thinking is True else 512
+    
+    print(f"Loading model: {args.model_path}")
+    model = AutoModelForImageTextToText.from_pretrained(
+        args.model_path,
+        torch_dtype="auto",
+        device_map="auto",
         trust_remote_code=True,
         attn_implementation="flash_attention_2"
     )
-    processor = AutoProcessor.from_pretrained(args.mllm_path, trust_remote_code=True)
-
-
+    processor = AutoProcessor.from_pretrained(args.model_path, trust_remote_code=True)
     model.eval()
-
-    video_qa_dict = load_qa(file_path=args.dataset_path)
-
-    if args.subset_idx_path is not None:
-        _video_qa_dict = {}
-        with open(args.subset_idx_path, 'r', encoding='utf-8') as f:
-            subset_idx = json.load(f)
-        for video, qas in video_qa_dict.items():
-            new_qas = [qa for qa in qas if qa.get("index", -1) in subset_idx]
-            _video_qa_dict[video] = new_qas
-        video_qa_dict = _video_qa_dict
-
-    if os.path.exists(args.output_path):
-        existed_videos = []
-        save_path = os.path.join(args.output_path, f"{args.mllm_path.split('/')[-1]}_myego_fps{args.fps}_fn{args.frame_num}_res{args.resolution}.json")
-        with open(save_path, "r") as f:
-            for line in f:
-                existed_videos.append(json.loads(line).get("video", None))
+    
+    with open(args.qa_json, "r", encoding="utf-8") as f:
+        qa_pairs = json.load(f)
+    
+    results = {}
+    print(f"Total to process: {len(qa_pairs)}")
+    
+    for i, qa_pair in enumerate(qa_pairs):
+        qid = str(qa_pair.get("question_id", i))
         
-        video_qa_dict = {video: qas for video, qas in video_qa_dict.items() if video not in existed_videos}
-    logging.info(f"Start inference on {len(video_qa_dict)} videos")
+        video_id = qa_pair.get("video_id", qa_pair.get("video_path", ""))
+        video_path = os.path.join(args.video_dir, video_id + ".mp4")
+        
+        question = qa_pair.get("question", "")
+        options = qa_pair.get("options", qa_pair.get("choices", []))
+        
+        try:
+            video_frames = load_video(video_path, qa_pair["question_moment"], args.max_frames)
+            video_frames = [Image.fromarray(frame) for frame in video_frames]
+            
+            if args.qa_format == "oe":
+                system_prompt = OPEN_ENDED_SYSTEM_PROMPT
+                question_prompt = build_oe_prompt(question)
+            else:
+                system_prompt = SYSTEM_PROMPT
+                question_prompt = build_mc_prompt(question, options)
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "video", "video": video_frames},
+                        {"type": "text", "text": question_prompt}
+                    ],
+                }
+            ]
+            
+            text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            image_inputs, video_inputs, video_kwargs = process_vision_info(
+                messages, return_video_kwargs=True, image_patch_size=16, return_video_metadata=True
+            )
+            if video_inputs is not None:
+                video_inputs, video_metadatas = zip(*video_inputs)
+                video_inputs, video_metadatas = list(video_inputs), list(video_metadatas)
+            else:
+                video_metadatas = None
+            
+            inputs = processor(
+                text=[text], images=image_inputs, videos=video_inputs,
+                video_metadata=video_metadatas, **video_kwargs,
+                do_resize=False, return_tensors="pt"
+            )
+            inputs = inputs.to(model.device)
+            output_ids = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS)
+            generated_ids = [output_ids[len(input_ids):] for input_ids, output_ids in zip(inputs.input_ids, output_ids)]
+            response = processor.batch_decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)[0]
+            
+            if thinking is True:
+                response = extract(response)
 
-    for video, qas in tqdm(video_qa_dict.items()):
-        start_time = time.time()
-        ans_qas = infer_single_video(video=video, qas=qas, args=args)
-        end_time = time.time()
-
-        logging.info(f"video {video} done. {len(qas)} questions answered in {end_time - start_time:.2f} seconds")
-        ans_qas = {"video": video, "qa_pairs": ans_qas}
-        save_qa(ans_qas, args.output_path)
-        logging.info(f"Successfully save {len(ans_qas)} questions to {args.output_path}")
+            if args.qa_format == 'mc':
+                results[qid] = response
+            
+            else:
+                results[qid] = {"question": question, "answer": qa_pair.get("answer", ""), "model_response": response}
+            
+        except Exception as e:
+            results[qid] = f"Error: {str(e)}"
+        
+        print(f"[{i+1}/{len(qa_pairs)}] QID={qid}: {results.get(qid, 'N/A')}")
+    
+    json.dump(results, open(save_path, "w", encoding="utf-8"), indent=2)
+    print(f"\nDone! Results saved to {save_path}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_path", type=str, default="./data/myego.json")
-    parser.add_argument("--video_path", type=str, default="./data/videos")
-    parser.add_argument("--mllm_path", type=str, default="Qwen/Qwen3-VL-4B-Instruct")
-    parser.add_argument("--output_path", type=str, default="./result")
-    parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--fps", type=int, default=1) # only support fps=1 for now
-    parser.add_argument("--frame_num", type=int, default=16) # uniform sampling
-    parser.add_argument("--resolution", type=int, default=336)
-
-    args = parser.parse_args()
-    
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    
-    infer_dataset(args)
+    main()
