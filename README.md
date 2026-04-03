@@ -39,6 +39,7 @@ python eval.py
 **Comparion to existing egocentric video QA dataset**
 
 ![alt text](figures/comparison.png)
+MP: question requires distinguishing ego-person and other persons in the video. MO: questions require distiguishing objects associated with ego-person and other similar-looking objects.
 
 ## Evaluation Result
 - Evaluation results of both open-source and closed-source MLLMs on MyEgo. (MC: Multiple-choice QA, OE: Open-Ended QA)
