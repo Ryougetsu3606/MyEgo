@@ -5,6 +5,7 @@
 - 5,012 manually annotated questions, each with open-ended (OE) and multiple-choice (MC) subtasks.
   - **Personalized**: highlighting the distinctions between the camera wearer's (*my*) actions or objects and those of other people in egocentric video stream, compelling the model to engage in personalized grounding and reasoning to first determine "which one is mine?" before arriving at a correct answer.
 - Highly challenging, even top models such as GPT-5 achieve only 46% accuracy, significantly falling behind human performance (85%).
+![alt text](figures/intro.png)
 
 ## Dataset access
 1. **Download the videos:** You can download the videos from [here](https://drive.google.com/drive/u/0/folders/1rZo-6X_Xst_9J9TzJOJ1owW3ZWUstOMl). Our videos are sourced from [Ego4D](https://ego4d-data.org/docs/data/videos), [CASTLE](https://castle-dataset.github.io/#download) and [Egolife](https://huggingface.co/datasets/lmms-lab/EgoLife).
