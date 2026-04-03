@@ -1,9 +1,9 @@
-# MyEgo
+# [MyEgo](https://arxiv.org/abs/2604.01966)
 
 ## Overview
-- 541 videos collected from 3 egocentric video dataset.
+- 541 videos (on average 9 minutes a video) collected from 3 egocentric video dataset (Ego4D, EgoLife, CASTLE2024).
 - 5,012 manually annotated questions, each with open-ended (OE) and multiple-choice (MC) subtasks.
-  - **Personalized**: highlighting distinctions between the camera wearer's (*my*) actions or objects and those of others, compelling the model to engage in personalized reasoning to first determine "which one is mine?" before arriving at a correct answer.
+  - **Personalized**: highlighting the distinctions between the camera wearer's (*my*) actions or objects and those of other people in egocentric video stream, compelling the model to engage in personalized grounding and reasoning to first determine "which one is mine?" before arriving at a correct answer.
 - Highly challenging, even top models such as GPT-5 achieve only 46% accuracy, significantly falling behind human performance (85%).
 
 ## Dataset access
