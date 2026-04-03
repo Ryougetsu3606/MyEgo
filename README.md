@@ -1,4 +1,4 @@
-# MyEgo
+# [MyEgo](https://arxiv.org/abs/2604.01966)
 
 ## Overview
 - 541 videos (on average 9 minutes a video) collected from 3 egocentric video dataset (Ego4D, EgoLife, CASTLE2024).
